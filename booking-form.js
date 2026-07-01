@@ -1,5 +1,5 @@
 /* =========================================================================
-   booking-form.js  v0.0.24  —  multi-leg poptávkový formulář
+   booking-form.js  v0.0.24   —  multi-leg poptávkový formulář
    -------------------------------------------------------------------------
    Změny oproti 0.0.23:
    - Locale-aware `POPTAVKA_URL`: cross-page redirect (Pokračovat z hero/footer
