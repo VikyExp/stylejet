@@ -1,6 +1,19 @@
 /* =========================================================================
-   booking-form.js  v0.0.23  —  multi-leg poptávkový formulář
+   booking-form.js  v0.0.24  —  multi-leg poptávkový formulář
    -------------------------------------------------------------------------
+   Změny oproti 0.0.23:
+   - Locale-aware `POPTAVKA_URL`: cross-page redirect (Pokračovat z hero/footer
+     a Zpět z cross-page step 2) teď automaticky zachovává locale prefix
+     aktuální URL. Na Webflow multi-locale sitech (`/en/...`, `/de/...` atd.)
+     tak přesměrujeme na správnou lokalizovanou verzi `/poptavka` stránky.
+     Regex matchuje typický Webflow locale prefix (2 písmena, případně
+     `xx-YY` varianta jako `pt-BR`). Primární locale bez prefixu funguje
+     beze změny.
+
+     Předpoklad: slug samotné stránky (`poptavka`) je ve všech locale stejný.
+     Pokud by klient v budoucnu použil Webflow URL Localization s lokalizovaným
+     slugem (např. `/en/inquiry`), bude potřeba jiný mechanismus.
+
    Změny oproti 0.0.22:
    - Default-radio fallback sjednocen do `initStep1Form`. Předtím
      samostatný snippet v Site Footer Code nastavoval "Zpáteční" jako
@@ -100,7 +113,13 @@
   var STORAGE_KEY      = 'formStep1';
   var STEP2_DRAFT_KEY  = 'formStep2Draft';     // sessionStorage — všechna pole kroku 2 pro refresh-protection
   var CONTACT_KEY      = 'formStep2Contact';   // localStorage — kontakt mezi poptávkami (returning customer)
-  var POPTAVKA_URL     = '/poptavka';          // stránka, kde žije step 2
+  // URL stránky s krokem 2 — přizpůsobí se locale prefixu (Webflow multi-locale).
+  // Regex matchne prefix typu `/en/`, `/de/`, `/pt-BR/` na začátku aktuální
+  // URL cesty a zachová ho. Primární locale (bez prefixu) zůstává `/poptavka`.
+  var POPTAVKA_URL = (function () {
+    var m = window.location.pathname.match(/^\/([a-z]{2}(?:-[A-Z]{2})?)(\/|$)/);
+    return (m ? '/' + m[1] : '') + '/poptavka';
+  })();
   var MAX_LEGS         = 5;
 
   // všechna text/select pole kroku 2 (kromě GDPR checkboxu, který se re-confirmuje)
