@@ -1,7 +1,20 @@
 /* =========================================================================
-   flight-datepicker.js  v0.0.6  —  datum + čas picker (flatpickr)
+   flight-datepicker.js  v0.0.7  —  datum + čas picker (flatpickr)
                                     s úplnou časovou validací
    -------------------------------------------------------------------------
+   Změny oproti 0.0.6:
+   - Locale detekce z `<html lang>`: na anglických Webflow stránkách
+     (lang="en"/"en-US") flatpickr teď použije defaultní anglickou lokalizaci,
+     na českých (lang="cs-CZ") zůstává čeština jako dosud. Detekce startsWith
+     pokrývá varianty (cs, cs-CZ, en, en-US, en-GB) bez nutnosti víc kódu.
+
+     dateFormat zůstává `d. m. Y H:i` napříč všemi lokalizacemi — operátor
+     v notifikačním e-mailu tak dostane vždy stejný formát datumu, který je
+     jednoznačný napříč regiony (rok 4-místný, tečkovaná separace).
+     Locale-aware formát by mohl vést k rozdílnému formátu v podle toho,
+     odkud byl formulář odeslán, což by zákazníkovi ani operátorovi
+     nepomohlo. Pokud by v budoucnu vznikla potřeba, dá se odemknout stejným
+     způsobem jako locale sám.
    Změny oproti 0.0.5:
    - `disableMobile: true` — flatpickr nyní používá svůj custom kalendář
      i na mobilech (iOS / Android). Předtím defaultně fallbackoval na
@@ -32,6 +45,17 @@
 
   function ready() { return typeof window !== 'undefined' && !!window.flatpickr; }
 
+  // Detekce jazyka stránky z `<html lang>` (Webflow: `cs-CZ`, `en`, `en-US`, ...).
+  // Vrací objekt s flatpickr lokalizací, nebo 'default' (= English) když
+  // nenajdeme českou stránku nebo cs locale file nebyl načten.
+  function getLocale() {
+    var lang = (document.documentElement.lang || '').toLowerCase();
+    if (lang.indexOf('cs') === 0 && window.flatpickr.l10ns && window.flatpickr.l10ns.cs) {
+      return window.flatpickr.l10ns.cs;
+    }
+    return 'default';
+  }
+
   // ---- init / attach ------------------------------------------------------
   function initPicker(input) {
     if (!input || input._fpReady || !ready()) return;
@@ -39,8 +63,8 @@
     window.flatpickr(input, {
       enableTime: true,
       time_24hr: true,
-      dateFormat: 'd. m. Y H:i',           // 01. 06. 2026 14:30
-      locale: (window.flatpickr.l10ns && window.flatpickr.l10ns.cs) || 'default',
+      dateFormat: 'd. m. Y H:i',           // 01. 06. 2026 14:30 (napříč lokalizacemi)
+      locale: getLocale(),                  // v0.0.7: detekce z <html lang>
       minDate: new Date(),                  // teď (datum + čas) — pravidlo 1
       minuteIncrement: 15,
       allowInput: false,
