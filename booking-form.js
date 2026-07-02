@@ -1,18 +1,23 @@
 /* =========================================================================
-   booking-form.js  v0.0.24   —  multi-leg poptávkový formulář
+   booking-form.js  v0.0.25  —  multi-leg poptávkový formulář
    -------------------------------------------------------------------------
-   Změny oproti 0.0.23:
-   - Locale-aware `POPTAVKA_URL`: cross-page redirect (Pokračovat z hero/footer
-     a Zpět z cross-page step 2) teď automaticky zachovává locale prefix
-     aktuální URL. Na Webflow multi-locale sitech (`/en/...`, `/de/...` atd.)
-     tak přesměrujeme na správnou lokalizovanou verzi `/poptavka` stránky.
-     Regex matchuje typický Webflow locale prefix (2 písmena, případně
-     `xx-YY` varianta jako `pt-BR`). Primární locale bez prefixu funguje
-     beze změny.
+   Změny oproti 0.0.24:
+   - Locale-safe normalizace radio value trip-type. Předtím JS hledal
+     `value="return"` / `value="oneway"` doslova a case-sensitive. Pokud
+     překladatel v Webflow Localization přeložil VALUE (ne jen label) na
+     „Return" / „One-way", JS to nerozpoznal a mode-switching v anglické
+     verzi přestal fungovat.
+     Fix: helper `normalizeMode(value)` mapuje libovolnou variantu
+     (`One-way`, `oneway`, `One_way`, `Jednosměrný`, ...) na kanonické
+     `oneway` / `return`. Všechna čtení i psaní radio value teď procházejí
+     přes něj → JS je robustní vůči budoucím překladům.
 
-     Předpoklad: slug samotné stránky (`poptavka`) je ve všech locale stejný.
-     Pokud by klient v budoucnu použil Webflow URL Localization s lokalizovaným
-     slugem (např. `/en/inquiry`), bude potřeba jiný mechanismus.
+     Doporučená správná varianta zůstává držet VALUE jako technický
+     identifier (`oneway`, `return`) a překládat jen LABEL — normalizace
+     je pojistka, ne omluva.
+
+   Změny oproti 0.0.23:
+   - Locale-aware `POPTAVKA_URL`: cross-page redirect zachovává locale prefix.
 
    Změny oproti 0.0.22:
    - Default-radio fallback sjednocen do `initStep1Form`. Předtím
@@ -442,12 +447,10 @@
     // 0) Default-radio fallback (per-form): pokud Webflow neoznačil žádný radio
     //    jako default-checked (typicky když je na stránce víc forem a Webflow
     //    inicializuje jen první), nastavíme "Zpáteční" jako výchozí stav.
+    //    setMode dělá normalized lookup, funguje i v anglické locale.
     //    restoreState dole tuhle hodnotu přepíše, pokud má uložené něco jiného.
     if (!form.querySelector('input[type="radio"][name="trip-type"]:checked')) {
-      var defaultRadio = form.querySelector(
-        'input[type="radio"][name="trip-type"][value="return"]'
-      );
-      if (defaultRadio) defaultRadio.checked = true;
+      setMode(form, 'return');
     }
 
     // 1) Obnovit stav (mód, úseky, hodnoty) ze sessionStorage do TOHOTO formu.
@@ -490,13 +493,11 @@
         }
         savedReturnAt = val(form, '[name="return-at"]');
 
-        var oneWayRadio = form.querySelector(
-          'input[type="radio"][name="trip-type"][value="oneway"]'
-        );
-        if (oneWayRadio) {
-          oneWayRadio.checked = true;     // programové = nefire-uje DOM change event
-          onModeChange(form);              // ručně spustíme mode-switch logiku
-        }
+        // Přepnutí na Jednosměrný přes setMode (locale-safe normalized lookup).
+        // onModeChange dál spustíme ručně, protože programové set radio.checked
+        // nespustí DOM change event.
+        setMode(form, 'oneway');
+        onModeChange(form);
       }
 
       addLeg(form);
@@ -563,13 +564,40 @@
   }
 
   // ---- režim ---------------------------------------------------------------
+  // Locale-safe normalizace value radio buttonů trip-type.
+  // Pokud překladatel v Webflow Localization přeložil VALUE (ne jen label)
+  // na „Return", „One-way", „ROUND TRIP", tento mapper vrátí kanonický klíč.
+  // Doporučené použití zůstává: value držet jako technický string
+  // (`oneway`, `return`) a překládat jen label — normalizace je pojistka.
+  function normalizeMode(value) {
+    var v = String(value || '').toLowerCase();
+    if (v.indexOf('return') !== -1 || v.indexOf('round') !== -1 ||
+        v.indexOf('zpáte') !== -1 || v.indexOf('zpate') !== -1) {
+      return 'return';
+    }
+    if (v.indexOf('oneway') !== -1 || v.indexOf('one-way') !== -1 ||
+        v.indexOf('one_way') !== -1 || v.indexOf('one way') !== -1 ||
+        v.indexOf('jednosm') !== -1) {
+      return 'oneway';
+    }
+    return 'return';   // default fallback
+  }
+
   function getMode(form) {
     var r = form.querySelector('input[type="radio"][name="trip-type"]:checked');
-    return r ? r.value : 'return';
+    return normalizeMode(r ? r.value : '');
   }
+
   function setMode(form, mode) {
-    var r = form.querySelector('input[type="radio"][name="trip-type"][value="' + mode + '"]');
-    if (r) r.checked = true;
+    // Najdeme radio, jehož normalizovaná value odpovídá requested modu.
+    // (Direct match `[value="return"]` by v anglické verzi selhal, kdyby tam bylo „Return".)
+    var radios = form.querySelectorAll('input[type="radio"][name="trip-type"]');
+    for (var i = 0; i < radios.length; i++) {
+      if (normalizeMode(radios[i].value) === mode) {
+        radios[i].checked = true;
+        return;
+      }
+    }
   }
 
   function syncMode(form) {
